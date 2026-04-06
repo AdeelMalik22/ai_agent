@@ -3,6 +3,9 @@ from datetime import datetime, timezone
 
 import requests
 
+from system_prompt import AGENT_PROMPTS
+
+
 def get_coordinates(city: str):
     """Return latitude and longitude for a city using Nominatim (OpenStreetMap)."""
     url = "https://nominatim.openstreetmap.org/search"
@@ -62,6 +65,7 @@ def run_tool(tool_name: str, raw_arguments: str) -> str:
         return json.dumps({"error": f"Invalid tool arguments JSON: {exc}"})
 
     try:
+        print(tool_name)
         if tool_name == "get_current_time":
             return json.dumps(get_current_time())
         if tool_name == "get_weather":
@@ -108,3 +112,61 @@ TOOLS = [
         },
     },
 ]
+
+
+def execute_handoff(raw_arguments: str, active_agent: str, handoffs_this_turn: int, max_handoffs: int) -> tuple[str, str, int]:
+    try:
+        args = json.loads(raw_arguments) if raw_arguments else {}
+    except json.JSONDecodeError as exc:
+        return json.dumps({"error": f"Invalid handoff arguments JSON: {exc}"}), active_agent, handoffs_this_turn
+
+    target_agent = args.get("target_agent")
+    reason = args.get("reason", "")
+
+    if not target_agent:
+        return json.dumps({"error": "Missing required argument: target_agent"}), active_agent, handoffs_this_turn
+
+    if target_agent not in AGENT_PROMPTS:
+        return json.dumps({"error": f"Unknown target agent: {target_agent}"}), active_agent, handoffs_this_turn
+
+    if handoffs_this_turn >= max_handoffs:
+        return (
+            json.dumps({"error": f"Handoff limit reached ({max_handoffs}) for this turn", "active_agent": active_agent}),
+            active_agent,
+            handoffs_this_turn,
+        )
+
+    if target_agent == active_agent:
+        return json.dumps({"ok": True, "active_agent": active_agent, "message": "Already on requested agent"}), active_agent, handoffs_this_turn
+
+    return (
+        json.dumps({"ok": True, "active_agent": target_agent, "reason": reason}),
+        target_agent,
+        handoffs_this_turn + 1,
+    )
+
+
+
+
+HANDOFF_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "handoff_to_agent",
+        "description": "Route the current request to a specialist agent. Use this before answering tasks that require planning, coding, or code review expertise.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "target_agent": {
+                    "type": "string",
+                    "enum": list(AGENT_PROMPTS.keys()),
+                    "description": "The specialist to hand off to.",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Short reason for the handoff.",
+                },
+            },
+            "required": ["target_agent"],
+        },
+    },
+}
