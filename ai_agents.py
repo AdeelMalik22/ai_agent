@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Any
 from openai import OpenAI
 
@@ -30,6 +31,7 @@ def main() -> None:
     max_iterations = int(os.getenv("MAX_TOOL_ITERATIONS", "8"))
     max_handoffs_per_turn = int(os.getenv("MAX_HANDOFFS_PER_TURN", "2"))
     debug_handoffs = os.getenv("DEBUG_HANDOFFS", "1") == "1"
+    stream_delay = float(os.getenv("STREAM_DELAY", "0.05"))
     guardrail_config = GuardrailConfig(
         max_user_input_length=int(os.getenv("MAX_USER_INPUT_LENGTH", "4000")),
         max_tool_arguments_length=int(os.getenv("MAX_TOOL_ARGUMENTS_LENGTH", "4000")),
@@ -98,10 +100,30 @@ def main() -> None:
                 messages=messages,
                 tools=TOOLS + [HANDOFF_TOOL],
                 tool_choice="auto",
+                stream=True,
             )
 
-            message = response.choices[0].message
-            tool_calls = message.tool_calls or []
+            collected_content = ""
+            tool_calls = []
+            finish_reason = None
+
+            print("AI: ", end="", flush=True)
+
+            for chunk in response:
+                if chunk.choices[0].delta.content:
+                    content_chunk = chunk.choices[0].delta.content
+                    collected_content += content_chunk
+                    print(content_chunk, end="", flush=True)
+                    time.sleep(stream_delay)
+
+                if chunk.choices[0].delta.tool_calls:
+                    tool_calls.extend([tc for tc in chunk.choices[0].delta.tool_calls if tc is not None])
+
+                finish_reason = chunk.choices[0].finish_reason
+
+            print()
+
+            message = type("Message", (), {"content": collected_content, "tool_calls": tool_calls or None})()
             if debug_handoffs and tool_calls:
                 print(f"[tools] requested={[call.function.name for call in tool_calls]}")
 
@@ -109,7 +131,7 @@ def main() -> None:
                 assistant_message = {
                     "role": "assistant",
                     "content": guard_assistant_output(message.content, output_guardrail_config),
-                    "tool_calls": [tc.model_dump() for tc in tool_calls],
+                    "tool_calls": [tc.model_dump() for tc in tool_calls if tc is not None],
                 }
                 messages.append(assistant_message)
 
@@ -175,7 +197,6 @@ def main() -> None:
                 continue
 
             reply = guard_assistant_output(message.content, output_guardrail_config)
-            print("AI:", reply)
             messages.append({"role": "assistant", "content": reply})
             messages = trim_conversation_history(messages, guardrail_config)
             break
