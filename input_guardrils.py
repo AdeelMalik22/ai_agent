@@ -21,6 +21,7 @@ DEFAULT_REPEAT_MESSAGE_MAX_COUNT = 2
 DEFAULT_MAX_JSON_KEYS = 50
 DEFAULT_MAX_JSON_DEPTH = 5
 DEFAULT_MAX_JSON_LIST_ITEMS = 50
+DEFAULT_BLOCK_HATEFUL_INPUT = True
 
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -32,6 +33,44 @@ _BLOCKED_PHRASES = (
     "show hidden prompt",
     "bypass safety",
     "jailbreak",
+)
+
+_PROTECTED_GROUPS = (
+    "race",
+    "religion",
+    "ethnicity",
+    "nationality",
+    "immigrant",
+    "refugee",
+    "black",
+    "white",
+    "asian",
+    "latino",
+    "muslim",
+    "christian",
+    "jewish",
+    "hindu",
+    "gay",
+    "lesbian",
+    "trans",
+    "woman",
+    "women",
+    "man",
+    "men",
+    "disabled",
+)
+_GROUP_PATTERN = "|".join(_PROTECTED_GROUPS)
+
+_HATEFUL_PATTERNS = (
+    re.compile(rf"\b(i\s+)?hate\s+(all\s+)?({_GROUP_PATTERN})s?\b", re.IGNORECASE),
+    re.compile(
+        rf"\b({_GROUP_PATTERN})s?\b.{{0,30}}\b(are|is)\b.{{0,30}}\b(inferior|vermin|animals|dirty|disease|subhuman)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"\b(ban|remove|eliminate|deport|kill|attack|hurt)\s+(all\s+)?({_GROUP_PATTERN})s?\b",
+        re.IGNORECASE,
+    ),
 )
 
 
@@ -53,6 +92,7 @@ class GuardrailConfig:
     max_json_keys: int = DEFAULT_MAX_JSON_KEYS
     max_json_depth: int = DEFAULT_MAX_JSON_DEPTH
     max_json_list_items: int = DEFAULT_MAX_JSON_LIST_ITEMS
+    block_hateful_input: bool = DEFAULT_BLOCK_HATEFUL_INPUT
 
 
 def normalize_text(text: str) -> str:
@@ -62,7 +102,7 @@ def normalize_text(text: str) -> str:
 
 def validate_user_input(user_input: str, config: GuardrailConfig | None = None) -> GuardrailResult:
     """Validate raw user input before sending it to the model."""
-    config = config or GuardrailConfig()
+    strict_config = config if config is not None else GuardrailConfig()
 
     if user_input is None:
         return GuardrailResult(False, "", "Input cannot be empty")
@@ -71,11 +111,11 @@ def validate_user_input(user_input: str, config: GuardrailConfig | None = None) 
     if not normalized:
         return GuardrailResult(False, "", "Input cannot be empty")
 
-    if len(normalized) > config.max_user_input_length:
+    if len(normalized) > strict_config.max_user_input_length:
         return GuardrailResult(
             False,
-            normalized[: config.max_user_input_length],
-            f"Input exceeds the maximum length of {config.max_user_input_length} characters",
+            normalized[: strict_config.max_user_input_length],
+            f"Input exceeds the maximum length of {strict_config.max_user_input_length} characters",
         )
 
     if _CONTROL_CHARS_RE.search(normalized):
@@ -89,7 +129,18 @@ def validate_user_input(user_input: str, config: GuardrailConfig | None = None) 
         if phrase in lowered:
             return GuardrailResult(False, "", "Input contains blocked prompt-injection text")
 
+    if strict_config.block_hateful_input and contains_hateful_speech(normalized):
+        return GuardrailResult(False, "", "Input contains hateful speech")
+
     return GuardrailResult(True, normalized)
+
+
+def contains_hateful_speech(text: str) -> bool:
+    """Detect broad hate-speech patterns without maintaining explicit slur lists."""
+    for pattern in _HATEFUL_PATTERNS:
+        if pattern.search(text):
+            return True
+    return False
 
 
 def _validate_json_shape(value: Any, *, depth: int, config: GuardrailConfig) -> str | None:
@@ -129,7 +180,7 @@ def validate_json_arguments(
         A tuple of (parsed_args, error_message). If validation succeeds, the
         error message is None.
     """
-    config = config or GuardrailConfig()
+    strict_config = config if config is not None else GuardrailConfig()
     limit = max_length or DEFAULT_MAX_TOOL_ARGUMENTS_LENGTH
 
     if raw_arguments is None:
@@ -146,7 +197,7 @@ def validate_json_arguments(
     if not isinstance(parsed, dict):
         return {}, "Tool arguments must be a JSON object"
 
-    shape_error = _validate_json_shape(parsed, depth=1, config=config)
+    shape_error = _validate_json_shape(parsed, depth=1, config=strict_config)
     if shape_error:
         return {}, shape_error
 

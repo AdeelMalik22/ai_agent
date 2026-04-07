@@ -10,6 +10,7 @@ from input_guardrils import (
     validate_recent_user_repetition,
     validate_user_input,
 )
+from output_guardrils import OutputGuardrailConfig, guard_assistant_output, guard_tool_output
 from system_prompt import AGENT_PROMPTS
 from tools import TOOLS, run_tool, HANDOFF_TOOL, execute_handoff
 
@@ -39,6 +40,28 @@ def main() -> None:
         max_json_keys=int(os.getenv("MAX_JSON_KEYS", "50")),
         max_json_depth=int(os.getenv("MAX_JSON_DEPTH", "5")),
         max_json_list_items=int(os.getenv("MAX_JSON_LIST_ITEMS", "50")),
+        block_hateful_input=os.getenv("BLOCK_HATEFUL_INPUT", "1") == "1",
+    )
+    output_guardrail_config = OutputGuardrailConfig(
+        max_assistant_output_length=int(os.getenv("MAX_ASSISTANT_OUTPUT_LENGTH", "6000")),
+        max_tool_output_length=int(os.getenv("MAX_TOOL_OUTPUT_LENGTH", "3000")),
+        empty_assistant_fallback=os.getenv(
+            "EMPTY_ASSISTANT_FALLBACK",
+            "I cannot provide that response safely. Please rephrase your request.",
+        ),
+        empty_tool_fallback=os.getenv(
+            "EMPTY_TOOL_FALLBACK",
+            '{"error":"Tool output was blocked by output guardrails"}',
+        ),
+        block_hateful_output=os.getenv("BLOCK_HATEFUL_OUTPUT", "1") == "1",
+        hateful_assistant_fallback=os.getenv(
+            "HATEFUL_ASSISTANT_FALLBACK",
+            "I cannot help with hateful or abusive content.",
+        ),
+        hateful_tool_fallback=os.getenv(
+            "HATEFUL_TOOL_FALLBACK",
+            '{"error":"Tool output contained hateful content and was blocked"}',
+        ),
     )
     active_agent = os.getenv("DEFAULT_AGENT", "general")
     if active_agent not in AGENT_PROMPTS:
@@ -85,7 +108,7 @@ def main() -> None:
             if tool_calls:
                 assistant_message = {
                     "role": "assistant",
-                    "content": message.content or "",
+                    "content": guard_assistant_output(message.content, output_guardrail_config),
                     "tool_calls": [tc.model_dump() for tc in tool_calls],
                 }
                 messages.append(assistant_message)
@@ -97,9 +120,10 @@ def main() -> None:
                             {
                                 "role": "tool",
                                 "tool_call_id": tool_call.id,
-                                "content": result,
+                                "content": guard_tool_output(result, output_guardrail_config),
                             }
                         )
+                        messages = trim_conversation_history(messages, guardrail_config)
                         continue
 
                     parsed_args, arg_error = validate_json_arguments(
@@ -113,9 +137,10 @@ def main() -> None:
                             {
                                 "role": "tool",
                                 "tool_call_id": tool_call.id,
-                                "content": result,
+                                "content": guard_tool_output(result, output_guardrail_config),
                             }
                         )
+                        messages = trim_conversation_history(messages, guardrail_config)
                         continue
 
                     if tool_call.function.name == "handoff_to_agent":
@@ -143,13 +168,13 @@ def main() -> None:
                         {
                             "role": "tool",
                             "tool_call_id": tool_call.id,
-                            "content": result,
+                            "content": guard_tool_output(result, output_guardrail_config),
                         }
                     )
                     messages = trim_conversation_history(messages, guardrail_config)
                 continue
 
-            reply = message.content or ""
+            reply = guard_assistant_output(message.content, output_guardrail_config)
             print("AI:", reply)
             messages.append({"role": "assistant", "content": reply})
             messages = trim_conversation_history(messages, guardrail_config)
