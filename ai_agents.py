@@ -47,11 +47,17 @@ def process_tool_calls(
 
     Returns: (active_agent, should_continue_loop, updated_handoff_count)
     """
+    # Filter out None tool calls and those without valid IDs
+    valid_tool_calls = [
+        tc for tc in tool_calls
+        if tc is not None and getattr(tc, "id", None) is not None
+    ]
+
     if runtime_config["debug_handoffs"]:
-        tool_names = extract_tool_names(tool_calls)
+        tool_names = extract_tool_names(valid_tool_calls)
         print(f"[tools] requested={tool_names}")
 
-    for tool_call in tool_calls:
+    for tool_call in valid_tool_calls:
         is_valid, error_msg, parsed_args = validate_single_tool_call(
             tool_call, known_tools, guardrail_config
         )
@@ -115,10 +121,21 @@ def process_model_response(
     Returns: (active_agent, handoffs_count, should_continue_loop)
     """
     if tool_calls:
+        # Filter tool calls to ensure they have valid IDs and required fields
+        valid_tool_calls = [
+            tc.model_dump() for tc in tool_calls
+            if tc is not None and getattr(tc, "id", None) is not None
+        ]
+
+        if not valid_tool_calls:
+            # No valid tool calls, treat as regular reply
+            handle_assistant_reply(collected_content, messages, guardrail_config, output_guardrail_config)
+            return active_agent, handoffs_this_turn, False
+
         assistant_message_with_tools = {
             "role": "assistant",
             "content": guard_assistant_output(collected_content, output_guardrail_config),
-            "tool_calls": [tc.model_dump() for tc in tool_calls if tc is not None],
+            "tool_calls": valid_tool_calls,
         }
         messages.append(assistant_message_with_tools)
 
