@@ -165,7 +165,7 @@ def main():
             st.session_state.clear()
             st.rerun()
 
-    # Display chat history (excluding system messages and tool calls)
+    # Display chat history (excluding system messages, tool messages, and internal assistant tool-call steps)
     st.divider()
     for message in st.session_state.messages:
         if message.get("role") == "system":
@@ -180,16 +180,30 @@ def main():
                 st.write(message.get("content", ""))
 
         elif message.get("role") == "assistant":
+            # Assistant messages that include tool calls are internal reasoning steps;
+            # keep them in state for the model, but don't render them as extra bubbles.
+            if message.get("tool_calls"):
+                continue
+
             with st.chat_message("assistant", avatar="🤖"):
-                st.markdown(message.get("content", ""))
+                st.markdown(
+                    guard_assistant_output(
+                        message.get("content", ""),
+                        st.session_state.output_guardrail_config,
+                    )
+                )
 
 
     # Input area
     user_input = st.chat_input("Ask me anything...")
 
     if user_input:
+        user_input_text = getattr(user_input, "text", user_input)
+        if not isinstance(user_input_text, str):
+            user_input_text = str(user_input_text)
+
         # Validate input
-        user_check = validate_user_input(user_input, st.session_state.guardrail_config)
+        user_check = validate_user_input(user_input_text, st.session_state.guardrail_config)
         if not user_check.allowed:
             st.error(f"Input rejected: {user_check.reason}")
             st.stop()
@@ -238,19 +252,32 @@ def main():
                     thinking_placeholder.warning("⚠️ Empty response from model")
                     break
 
+                # Check if AI is using web search
+                if tool_calls and any(
+                    tc is not None and getattr(tc, "id", None) is not None
+                    and getattr(tc.function, "name", "") == "web_search"
+                    for tc in tool_calls
+                ):
+                    thinking_placeholder.info("🔍 Searching the web for latest information...")
+
                 # If there are no tool calls, display the response and stop
                 if not tool_calls or not any(tc is not None and getattr(tc, "id", None) is not None for tc in tool_calls):
+                    final_reply = guard_assistant_output(
+                        collected_content,
+                        st.session_state.output_guardrail_config,
+                    )
+
                     # Clear thinking indicator
                     thinking_placeholder.empty()
 
                     # Display final response
                     with st.chat_message("assistant", avatar="🤖"):
-                        st.markdown(collected_content)
+                        st.markdown(final_reply)
 
                     # Save to messages
                     st.session_state.messages.append({
                         "role": "assistant",
-                        "content": collected_content
+                        "content": final_reply
                     })
                     st.session_state.messages = trim_conversation_history(
                         st.session_state.messages,
@@ -259,8 +286,9 @@ def main():
                     response_displayed = True
                     break
 
-                # Process tool calls (handoffs, etc)
-                thinking_placeholder.info("🔄 Processing tools...")
+                # Process tool calls (handoffs, web search, etc)
+                if not any(getattr(tc.function, "name", "") == "web_search" for tc in tool_calls if tc is not None):
+                    thinking_placeholder.info("🔄 Processing...")
 
                 active_agent, handoffs_this_turn, should_continue = process_model_response(
                     collected_content,
@@ -280,8 +308,8 @@ def main():
                     thinking_placeholder.empty()
                     break
 
-                # Update thinking message to show agent change
-                thinking_placeholder.info(f"🤔 {st.session_state.active_agent.upper()} is thinking...")
+                # Update thinking message to show current status
+                thinking_placeholder.info(f"🤔 Ai is thinking")
 
                 iteration += 1
 
