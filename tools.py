@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 
 import requests
+from ddgs import DDGS
 
 from system_prompt import AGENT_PROMPTS
 
@@ -58,6 +59,38 @@ def get_current_time() -> dict:
     }
 
 
+def web_search(query: str, max_results: int = 5) -> dict:
+    """Search the web using DuckDuckGo (free, no API key needed)."""
+    try:
+        ddgs = DDGS()
+        results = ddgs.text(query, max_results=max_results)
+
+        if not results:
+            return {"status": "success", "query": query, "results": [], "message": "No results found"}
+
+        formatted_results = []
+        for result in results:
+            formatted_results.append({
+                "title": result.get("title", ""),
+                "body": result.get("body", ""),
+                "url": result.get("href", "")
+            })
+
+        return {
+            "status": "success",
+            "query": query,
+            "results_count": len(formatted_results),
+            "results": formatted_results
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "query": query,
+            "error": str(e),
+            "message": f"Failed to search web: {str(e)}"
+        }
+
+
 def run_tool(tool_name: str, raw_arguments: str) -> str:
     try:
         args = json.loads(raw_arguments) if raw_arguments else {}
@@ -70,6 +103,8 @@ def run_tool(tool_name: str, raw_arguments: str) -> str:
             return json.dumps(get_current_time())
         if tool_name == "get_weather":
             return json.dumps(get_weather(**args))
+        if tool_name == "web_search":
+            return json.dumps(web_search(**args))
         return json.dumps({"error": f"Unknown tool: {tool_name}"})
     except Exception as exc:  # noqa: BLE001
         return json.dumps({"error": f"Tool execution failed: {exc}"})
@@ -108,6 +143,28 @@ TOOLS = [
                     },
                 },
                 "required": ["city"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the internet for information using DuckDuckGo. Use this when you need current information or don't know something.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query (e.g., 'latest news about AI', 'how to learn Python')",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 5, max: 10)",
+                        "default": 5,
+                    },
+                },
+                "required": ["query"],
             },
         },
     },
