@@ -148,7 +148,44 @@ def main():
         page_title="AI Agent System",
         page_icon="🤖",
         layout="wide",
+        initial_sidebar_state="auto",
     )
+
+    # Custom CSS for mobile responsiveness
+    st.markdown("""
+    <style>
+        /* Mobile responsive adjustments */
+        @media (max-width: 640px) {
+            .stChatMessage {
+                padding: 0.5rem !important;
+            }
+            .stChatInput {
+                padding: 0.5rem !important;
+            }
+            h1 {
+                font-size: 1.5rem !important;
+            }
+            .stSidebar {
+                width: 250px !important;
+            }
+        }
+        
+        /* Make chat messages more readable */
+        .stChatMessage {
+            word-wrap: break-word;
+        }
+        
+        /* Improve input field visibility */
+        .stChatInput input {
+            font-size: 16px !important;
+        }
+        
+        /* Better spacing for mobile */
+        .stDivider {
+            margin: 0.5rem 0 !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
     st.title("🤖 AI Agent System")
     st.markdown("Chat with AI specialists for coding, planning, and reviews")
@@ -156,16 +193,18 @@ def main():
     # Initialize session
     initialize_streamlit_session()
 
-    # Sidebar
+    # Sidebar (auto-collapses on mobile)
     with st.sidebar:
         st.header("⚙️ Settings")
-        st.write(f"**Active Agent:** {st.session_state.active_agent.upper()}")
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.write(f"**Agent:** {st.session_state.active_agent.upper()}")
 
-        if st.button("🔄 Reset Conversation"):
+        if st.button("🔄 Reset", use_container_width=True):
             st.session_state.clear()
             st.rerun()
 
-    # Display chat history (excluding system messages and tool calls)
+    # Main chat area
     st.divider()
     for message in st.session_state.messages:
         if message.get("role") == "system":
@@ -177,15 +216,15 @@ def main():
 
         if message.get("role") == "user":
             with st.chat_message("user", avatar="👤"):
-                st.write(message.get("content", ""))
+                st.text(message.get("content", ""))
 
         elif message.get("role") == "assistant":
             with st.chat_message("assistant", avatar="🤖"):
                 st.markdown(message.get("content", ""))
 
-
-    # Input area
-    user_input = st.chat_input("Ask me anything...")
+    # Input area - stays at bottom
+    st.divider()
+    user_input = st.chat_input("Ask me anything...", key="chat_input")
 
     if user_input:
         # Validate input
