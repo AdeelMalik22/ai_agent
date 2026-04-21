@@ -83,8 +83,39 @@ def _redact_secrets(text: str) -> str:
     return redacted
 
 
+def _strip_citation_markers(text: str) -> str:
+    """Remove citation-like tool reference markers leaked into assistant text."""
+    cleaned = text
+
+    while True:
+        dagger_index = cleaned.find("†")
+        if dagger_index == -1:
+            break
+
+        open_candidates = [idx for idx in (cleaned.rfind("[", 0, dagger_index), cleaned.rfind("【", 0, dagger_index)) if idx != -1]
+        close_candidates = [idx for idx in (cleaned.find("]", dagger_index), cleaned.find("】", dagger_index)) if idx != -1]
+
+        if not close_candidates:
+            break
+
+        start = max(open_candidates) if open_candidates else cleaned.rfind(" ", 0, dagger_index)
+        if start == -1:
+            start = 0
+        elif cleaned[start] == " ":
+            start += 1
+
+        end = min(close_candidates)
+        cleaned = cleaned[:start] + cleaned[end + 1 :]
+
+    cleaned = re.sub(r"\s+([,.;:!?])", r"\1", cleaned)
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    return cleaned
+
+
 def _sanitize_text(text: str) -> str:
-    return _redact_secrets(_strip_control_chars(text)).strip()
+    cleaned = _redact_secrets(_strip_control_chars(text))
+    cleaned = _strip_citation_markers(cleaned)
+    return cleaned.strip()
 
 
 def _contains_hateful_speech(text: str) -> bool:
@@ -119,7 +150,8 @@ def guard_assistant_output(content: str | None, config: OutputGuardrailConfig | 
     if config.block_hateful_output and _contains_hateful_speech(sanitized):
         return config.hateful_assistant_fallback
     truncated = _truncate(sanitized, config.max_assistant_output_length)
-    return truncated or config.empty_assistant_fallback
+    # Return content even if empty (no fallback blocking for factual responses)
+    return truncated if truncated else ""
 
 
 def guard_tool_output(content: str | None, config: OutputGuardrailConfig | None = None) -> str:
