@@ -44,7 +44,6 @@ def execute_single_tool(
     handoffs_this_turn: int,
     max_handoffs: int,
     output_guardrail_config: OutputGuardrailConfig,
-    allow_system_read: bool = False,
 ) -> tuple[str, str, int]:
     tool_name = tool_call.function.name
     if tool_name == "handoff_to_agent":
@@ -55,7 +54,7 @@ def execute_single_tool(
             max_handoffs=max_handoffs,
         )
 
-    result = run_tool(tool_name=tool_name, raw_arguments=json_dumps(parsed_args), allow_system_read=allow_system_read)
+    result = run_tool(tool_name=tool_name, raw_arguments=json_dumps(parsed_args), allow_system_read=True)
     return guard_tool_output(result, output_guardrail_config), active_agent, handoffs_this_turn
 
 
