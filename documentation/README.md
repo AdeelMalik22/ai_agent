@@ -59,6 +59,12 @@ export MAX_TOOL_ITERATIONS=8
 export MAX_HANDOFFS_PER_TURN=2
 export DEBUG_HANDOFFS=1
 export MAX_HISTORY_MESSAGES=40
+
+# File I/O Tools Configuration
+export WORKSPACE_ROOT=/path/to/your/workspace
+export MAX_FILE_SIZE=100
+export ALLOWED_READ_EXTENSIONS=".py,.ts,.js,.json,.md,.txt,.yaml,.yml,.toml,.env,.sh,.css,.html,.xml,.sql,.r,.rb,.go,.java,.cpp,.c,.h,.cs"
+export ALLOWED_WRITE_EXTENSIONS=".py,.ts,.js,.json,.md,.txt,.yaml,.yml,.toml,.env,.sh,.css,.html,.xml,.sql,.r,.rb,.go,.java,.cpp,.c,.h,.cs"
 ```
 
 Then reload your shell:
@@ -158,14 +164,44 @@ See `HANDOFF_FLOW.md` for complete technical documentation.
 - **`get_current_time`** - Returns current UTC time
 - **`get_weather`** - Returns weather for specified location
 - **`web_search`** - Searches the web for current information
+- **`read_file`** - Reads file contents from workspace
+- **`write_file`** - Creates or modifies files in workspace
+- **`list_files`** - Lists files and directories in workspace
 - **`handoff_to_agent`** - Routes to specialist agents
+
+### File I/O Tools
+
+The agent can read, write, and explore files in your workspace:
+
+#### read_file
+- Read any supported code file (`.py`, `.ts`, `.js`, `.json`, `.md`, etc.)
+- Automatically validates file paths (prevents directory traversal)
+- Respects file size limits (default: 100KB)
+- Returns file contents and metadata
+- **NEW:** Can optionally read from system files (see SYSTEM_FILE_ACCESS.md)
+
+#### write_file
+- Create or modify files in workspace
+- Automatically creates parent directories
+- Validates file extensions for safety
+- Returns success confirmation
+
+#### list_files
+- Explore directory structure
+- Shows file types and sizes
+- Helps agent understand project layout
+
+**See `FILE_TOOLS.md` for complete documentation and examples.**
+
+**NEW:** See `SYSTEM_FILE_ACCESS.md` to enable reading files from anywhere on your system!
 
 ### Tool Execution
 
-1. Model decides which tools to use
-2. Python executes tools locally (no external API calls except for data)
+1. Model decides which tools to use based on the task
+2. Python executes tools locally
 3. Results are added to conversation history
 4. Model uses results in next response
+5. Agent reports file operations to user
 
 ## Guardrails & Safety
 
@@ -298,6 +334,10 @@ python ai_agents.py
 | `MAX_HANDOFFS_PER_TURN` | 2 | Max agent handoffs |
 | `DEBUG_HANDOFFS` | 1 | Show handoff logs |
 | `MAX_HISTORY_MESSAGES` | 40 | Conversation memory |
+| `WORKSPACE_ROOT` | Current directory | Root for file operations |
+| `MAX_FILE_SIZE` | 100 | Max file read size in KB |
+| `ALLOWED_READ_EXTENSIONS` | Common code files | File types allowed for reading |
+| `ALLOWED_WRITE_EXTENSIONS` | Common code files | File types allowed for writing |
 
 ## Examples
 
@@ -318,12 +358,40 @@ AI: The weather in Dubai is sunny with a temperature of 42°C (107°F)...
    - Reviewer analyzes the code
    - Response displays with formatting
 
+### Terminal - File Operations
+
+```
+ask Question.....: Show me the structure of the project
+[tool] list_files
+AI: The project has the following structure:
+- ai_agents.py (main CLI)
+- streamlit_app.py (web UI)
+- api_server.py (API backend)
+- config/settings.py (configuration)
+- core/session.py (session management)
+...
+```
+
+### Terminal - Code Modification
+
+```
+ask Question.....: Add error logging to the chat endpoint in api_server.py
+[tool] read_file
+[tool] write_file
+AI: I've added comprehensive error logging to the chat endpoint.
+Changes made:
+- Added logging import
+- Added error handlers for each validation step
+- Returns detailed error information in responses
+File updated: api_server.py
+```
+
 ### API - Chat Request
 
 ```bash
 curl -X POST http://localhost:3000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "What is 2+2?"}' | jq
+  -d '{"message": "What time is it?"}' | jq
 ```
 
 ## Notes
@@ -336,6 +404,11 @@ curl -X POST http://localhost:3000/chat \
 
 ## Additional Documentation
 
+- **FILE_TOOLS_QUICKSTART.md** - Quick start for file I/O tools (5 min)
+- **FILE_TOOLS.md** - Complete file I/O tools reference (300+ lines)
+- **SYSTEM_FILE_ACCESS.md** - Enable reading files from your system (NEW!)
+- **EXTENSION_INTEGRATION.md** - VS Code extension integration guide
+- **IMPLEMENTATION_GUIDE.md** - Technical implementation details
 - **HANDOFF_FLOW.md** - Deep dive into multi-agent routing system
 - **GUARDRILS_INPUT_OUTPUT_FLOW.md** - Safety and guardrails system
 

@@ -51,6 +51,18 @@ def load_config() -> tuple[GuardrailConfig, OutputGuardrailConfig, dict[str, Any
         "max_handoffs_per_turn": int(os.getenv("MAX_HANDOFFS_PER_TURN", "2")),
         "debug_handoffs": os.getenv("DEBUG_HANDOFFS", "1") == "1",
         "stream_delay": float(os.getenv("STREAM_DELAY", "0.05")),
+        # File tool configuration
+        "workspace_root": os.getenv("WORKSPACE_ROOT", os.getcwd()),
+        "max_file_size_kb": int(os.getenv("MAX_FILE_SIZE", "100")),
+        "allow_system_file_read": os.getenv("ALLOW_SYSTEM_FILE_READ", "0") == "1",
+        "allowed_read_extensions": os.getenv(
+            "ALLOWED_READ_EXTENSIONS",
+            ".py,.ts,.js,.json,.md,.txt,.yaml,.yml,.toml,.env,.sh,.css,.html,.xml,.sql,.r,.rb,.go,.java,.cpp,.c,.h,.cs"
+        ).split(","),
+        "allowed_write_extensions": os.getenv(
+            "ALLOWED_WRITE_EXTENSIONS",
+            ".py,.ts,.js,.json,.md,.txt,.yaml,.yml,.toml,.env,.sh,.css,.html,.xml,.sql,.r,.rb,.go,.java,.cpp,.c,.h,.cs"
+        ).split(","),
     }
 
     return guardrail_config, output_guardrail_config, runtime_config

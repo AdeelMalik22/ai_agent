@@ -63,6 +63,7 @@ def process_tool_calls(
             handoffs_this_turn,
             runtime_config["max_handoffs_per_turn"],
             output_guardrail_config,
+            allow_system_read=runtime_config.get("allow_system_file_read", False),
         )
 
         if new_agent != active_agent:
