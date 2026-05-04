@@ -47,7 +47,7 @@ def load_config() -> tuple[GuardrailConfig, OutputGuardrailConfig, dict[str, Any
 
     runtime_config = {
         "model": os.getenv("MODEL_ID", "openai.gpt-oss-120b"),
-        "max_iterations": int(os.getenv("MAX_TOOL_ITERATIONS", "8")),
+        "max_iterations": int(os.getenv("MAX_TOOL_ITERATIONS", "800")),
         "max_handoffs_per_turn": int(os.getenv("MAX_HANDOFFS_PER_TURN", "2")),
         "debug_handoffs": os.getenv("DEBUG_HANDOFFS", "1") == "1",
         "stream_delay": float(os.getenv("STREAM_DELAY", "0.05")),
