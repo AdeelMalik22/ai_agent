@@ -24,8 +24,8 @@ def load_config() -> tuple[GuardrailConfig, OutputGuardrailConfig, dict[str, Any
     )
 
     output_guardrail_config = OutputGuardrailConfig(
-        max_assistant_output_length=int(os.getenv("MAX_ASSISTANT_OUTPUT_LENGTH", "6000")),
-        max_tool_output_length=int(os.getenv("MAX_TOOL_OUTPUT_LENGTH", "3000")),
+        max_assistant_output_length=int(os.getenv("MAX_ASSISTANT_OUTPUT_LENGTH", "50000")),
+        max_tool_output_length=int(os.getenv("MAX_TOOL_OUTPUT_LENGTH", "15000")),
         empty_assistant_fallback=os.getenv(
             "EMPTY_ASSISTANT_FALLBACK",
             "I cannot provide that response safely. Please rephrase your request.",

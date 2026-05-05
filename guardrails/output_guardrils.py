@@ -8,8 +8,8 @@ import re
 from typing import Any
 
 
-DEFAULT_MAX_ASSISTANT_OUTPUT_LENGTH = 6000
-DEFAULT_MAX_TOOL_OUTPUT_LENGTH = 3000
+DEFAULT_MAX_ASSISTANT_OUTPUT_LENGTH = 50000
+DEFAULT_MAX_TOOL_OUTPUT_LENGTH = 15000
 DEFAULT_EMPTY_ASSISTANT_FALLBACK = "I cannot provide that response safely. Please rephrase your request."
 DEFAULT_EMPTY_TOOL_FALLBACK = '{"error":"Tool output was blocked by output guardrails"}'
 DEFAULT_HATEFUL_ASSISTANT_FALLBACK = "I cannot help with hateful or abusive content."
