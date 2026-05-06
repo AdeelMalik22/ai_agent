@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
+from ddgs import DDGS
 
 from system_prompt import AGENT_PROMPTS
 
@@ -50,6 +51,55 @@ def get_weather(city: str, unit: str = "celsius") -> dict:
 
     return {"city": city, "unit": "celsius", "temperature": temp_c, "source": "Open-Meteo"}
 
+
+def web_search(query: str, max_results: int = 5) -> dict:
+    """
+    Search the web using DuckDuckGo (free, no API key needed).
+
+    Args:
+        query: Search query string
+        max_results: Maximum number of results to return (default: 5, max: 10)
+
+    Returns:
+        dict with search results including title, body, and URL
+    """
+    try:
+        ddgs = DDGS()
+        results = ddgs.text(query, max_results=min(max_results, 10))
+
+        if not results:
+            return {
+                "status": "success",
+                "query": query,
+                "results": [],
+                "message": "No results found",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        formatted_results = []
+        for result in results:
+            formatted_results.append({
+                "title": result.get("title", ""),
+                "body": result.get("body", ""),
+                "url": result.get("href", "")
+            })
+
+        return {
+            "status": "success",
+            "query": query,
+            "results_count": len(formatted_results),
+            "results": formatted_results,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "DuckDuckGo"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "query": query,
+            "error": str(e),
+            "message": f"Failed to search web: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
 
 def get_current_time() -> dict:
@@ -264,6 +314,8 @@ def run_tool(tool_name: str, raw_arguments: str, allow_system_read: bool = False
             return json.dumps(get_current_time())
         if tool_name == "get_weather":
             return json.dumps(get_weather(**args))
+        if tool_name == "web_search":
+            return json.dumps(web_search(**args))
         if tool_name == "read_file":
             return json.dumps(read_file(args.get("file_path", ""), allow_system_access=allow_system_read))
         if tool_name == "write_file":
@@ -308,6 +360,28 @@ TOOLS = [
                     },
                 },
                 "required": ["city"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the web for current information, latest news, recent events, product releases, documentation, and real-time data. Use this for any factual question that requires up-to-date information.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query - what you want to find information about",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 5, max: 10)",
+                        "default": 5,
+                    },
+                },
+                "required": ["query"],
             },
         },
     },

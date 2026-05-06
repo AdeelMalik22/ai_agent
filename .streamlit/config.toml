@@ -10,8 +10,8 @@ showErrorDetails = false
 toolbarMode = "minimal"
 
 [server]
-maxUploadSize = 200
-maxMessageSize = 200
+maxUploadSize = 500
+maxMessageSize = 500
 enableCORS = true
 enableXsrfProtection = true
 headless = true

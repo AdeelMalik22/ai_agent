@@ -187,12 +187,12 @@ def main():
                 continue
 
             with st.chat_message("assistant", avatar="🤖"):
-                st.markdown(
-                    guard_assistant_output(
-                        message.get("content", ""),
-                        st.session_state.output_guardrail_config,
-                    )
+                content = guard_assistant_output(
+                    message.get("content", ""),
+                    st.session_state.output_guardrail_config,
                 )
+                # Display complete content without any truncation
+                st.markdown(content, unsafe_allow_html=False)
 
 
     # Input area
@@ -271,9 +271,10 @@ def main():
                     # Clear thinking indicator
                     thinking_placeholder.empty()
 
-                    # Display final response
+                    # Display final response in full (no truncation)
                     with st.chat_message("assistant", avatar="🤖"):
-                        st.markdown(final_reply)
+                        # Use columns to avoid any container-based truncation
+                        st.markdown(final_reply, unsafe_allow_html=False)
 
                     # Save to messages
                     st.session_state.messages.append({
