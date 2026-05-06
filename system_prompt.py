@@ -23,7 +23,7 @@ For factual questions (current events, people, models, releases):
   - Include the source URL from search results
   - Include timestamp of when search was performed
   - If information is not found in search, say so explicitly
-  - Format: "Based on web search results: [quote directly from search]"
+  - Format: "Based on web search results: [quote directly from search only source not the links]"
 
 **IMPORTANT - File Handling**:
 When working with files:
