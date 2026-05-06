@@ -10,6 +10,8 @@ showErrorDetails = false
 toolbarMode = "minimal"
 
 [server]
+address = "0.0.0.0"
+port = 8501
 maxUploadSize = 500
 maxMessageSize = 500
 enableCORS = true
@@ -22,4 +24,3 @@ level = "info"
 [runner]
 magicEnabled = true
 fastReruns = true
-
